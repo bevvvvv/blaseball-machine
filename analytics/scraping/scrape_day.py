@@ -6,8 +6,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def scrape():  
-    driver = webdriver.Chrome('./chromedriver')
+def scrape():
+    # driver needs to be in path
+    driver = webdriver.Chrome()
     driver.get("https://www.blaseball.com/league")
 
     # login with supplied google credentials
