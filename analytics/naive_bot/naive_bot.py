@@ -1,12 +1,14 @@
 import sys
 import logging
 import datetime as dt
+import time
 
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 from fastapi import BackgroundTasks, FastAPI
 
 app = FastAPI()
@@ -87,6 +89,7 @@ def bet(username: str, password: str):
     leage_info = driver.find_elements_by_class_name("League-Number")
 
     bet_buttons = driver.find_elements_by_css_selector("button.Widget-Button.btn.btn-success")
+    bet_buttons.pop(0)
 
     # create df to populate
     column_names = ['home_team', 'away_team', 'decision'
@@ -95,6 +98,7 @@ def bet(username: str, password: str):
     df = pd.DataFrame(columns=column_names)
 
     for team_one in range(0, len(team_names), 2):
+        logger.info(team_one)
         entry = {}
         team_two = team_one + 1
         entry['home_team'] = team_names[team_one].text
@@ -110,7 +114,24 @@ def bet(username: str, password: str):
         entry['season_day'] = int(leage_info[1].text)
 
         # bet
-        bet_buttons[team_one//2].click()
+        button = bet_buttons[team_one//2]
+        def click_button(button):
+            driver.execute_script('arguments[0].scrollIntoView();', button)
+            time.sleep(2)
+            logger.info(len(bet_buttons))
+            button.click()
+        try:
+            click_button(button)
+        except:
+            try:
+                bet_buttons.pop(team_one//2)
+                click_button(bet_buttons[team_one//2])
+            except:
+                logger.error('Could not click bet button.')
+                driver.quit()
+                return
+
+        
         names = driver.find_elements_by_class_name('ModalForm-Form-Team-Name')
         win_pct = driver.find_elements_by_class_name('ModalForm-Form-Team-Percentage')
         win_pct = [int(elem.text.replace('%','')) for elem in win_pct]
@@ -120,10 +141,22 @@ def bet(username: str, password: str):
         else:
             entry['decision'] = names[1]
             driver.find_element_by_css_selector('div.ModalForm-Form-Team.Away').click()
-        elem = get_elem_xpath('//*[@id="amount"]', driver)
-        driver.execute_script("arguments[0].setAttribute('value', arguments[1])", elem, '27')
+        try:
+            amount_path = '//*[@id="amount"]'
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, amount_path)))
+            amount_input = driver.find_element_by_xpath(amount_path)
+            amount_input.click()
+            amount_input.send_keys(Keys.BACKSPACE)
+            amount_input.send_keys('1')
+            logger.info('bet!')
+        except:
+            logger.error('Error loading page!')
+            driver.quit()
+            return
         # submit bet
         #get_elem_xpath('//*[@id="root"]/div/div/div[4]/div/form/div[4]/button', driver).click()
+        # close window
+        get_elem_xpath('//*[@id="root"]/div/div/div[4]/div/button', driver).click()
 
         df = df.append(entry, ignore_index=True)
 
